@@ -20,7 +20,7 @@ const MEMORY_SIZE: usize = 30000;
 #[derive(Debug)]
 struct Interpreter {
     output: Vec<u8>,
-    code: Option<Vec<Instr>>,
+    code: Vec<Instr>,
     ip: usize,
     ptr: usize,
     memory: [u8; MEMORY_SIZE],
@@ -88,34 +88,52 @@ impl Interpreter {
     }
 
     pub fn run(&mut self, source: &str) -> Result<()> {
-        self.code = Some(generate_code(source)?);
+        self.code = generate_code(source)?;
         println!("{:?}", self.code);
+        while self.ip < self.code.len() {
+            self.step();
+            if self.breakpoints.contains(&self.ip) {
+                break;
+            }
+        }
         Ok(())
     }
 
     pub fn step(&mut self) {
-        let code = self.code.as_ref().unwrap();
-        match code[self.ip] {
-            Instr::Next => todo!(),
-            Instr::Prev => todo!(),
-            Instr::Incr => todo!(),
-            Instr::Decr => todo!(),
-            Instr::Output => todo!(),
+        match self.code[self.ip] {
+            Instr::Next => self.ptr += 1,
+            Instr::Prev => self.ptr -= 1,
+            Instr::Incr => *self.data() = self.data().wrapping_add(1),
+            Instr::Decr => *self.data() = self.data().wrapping_sub(1),
+            Instr::Output => {
+                let datum = *self.data();
+                self.output.push(datum);
+            }
             Instr::Input => todo!(),
-            Instr::While(_) => todo!(),
-            Instr::End(_) => todo!(),
+            Instr::While(offset) => {
+                if *self.data() == 0 {
+                    self.ip = offset
+                }
+            }
+            Instr::End(offset) => {
+                if *self.data() != 0 {
+                    self.ip = offset
+                }
+            }
         }
+        self.ip += 1;
+    }
+
+    fn data(&mut self) -> &mut u8 {
+        &mut self.memory[self.ptr]
     }
 
     pub fn add_breakpoint(&mut self, offset: usize) -> Result<()> {
-        match &self.code {
-            Some(code) if offset >= code.len() => Err(anyhow!("Offset is out of bounds.")),
-            None => Err(anyhow!("No code in which to set a breakpoint.")),
-            _ => {
-                self.breakpoints.insert(offset);
-                Ok(())
-            }
+        if offset >= self.code.len() {
+            return Err(anyhow!("Offset is out of bounds."));
         }
+        self.breakpoints.insert(offset);
+        Ok(())
     }
 
     pub fn remove_breakpoint(&mut self, offset: usize) {
@@ -171,6 +189,6 @@ Pointer :   ^
         "#;
     let mut interpreter = Interpreter::new();
     interpreter.run(source)?;
-    println!("Output: {:?}", interpreter.get_output());
+    println!("Output: {:?}", std::str::from_utf8(interpreter.get_output())?);
     Ok(())
 }
