@@ -2,6 +2,7 @@
 
 use anyhow::{anyhow, Result};
 use std::collections::HashSet;
+use std::io;
 
 #[derive(Debug)]
 enum Instr {
@@ -18,26 +19,14 @@ enum Instr {
 const MEMORY_SIZE: usize = 30000;
 
 #[derive(Debug)]
-struct Interpreter {
+struct Interpreter<T: io::Read> {
+    input: T,
     output: Vec<u8>,
     code: Vec<Instr>,
     ip: usize,
     ptr: usize,
     memory: [u8; MEMORY_SIZE],
     breakpoints: HashSet<usize>,
-}
-
-impl Default for Interpreter {
-    fn default() -> Self {
-        Self {
-            output: Default::default(),
-            code: Default::default(),
-            ip: Default::default(),
-            ptr: Default::default(),
-            memory: [0; MEMORY_SIZE],
-            breakpoints: Default::default(),
-        }
-    }
 }
 
 fn generate_code(source: &str) -> Result<Vec<Instr>> {
@@ -78,9 +67,17 @@ fn generate_code(source: &str) -> Result<Vec<Instr>> {
     Ok(code)
 }
 
-impl Interpreter {
-    pub fn new() -> Self {
-        Default::default()
+impl<T: io::Read> Interpreter<T> {
+    fn new(input: T) -> Self {
+        Self {
+            input,
+            output: Default::default(),
+            code: Default::default(),
+            ip: Default::default(),
+            ptr: Default::default(),
+            memory: [0; MEMORY_SIZE],
+            breakpoints: Default::default(),
+        }
     }
 
     pub fn get_output(&self) -> &[u8] {
@@ -109,7 +106,14 @@ impl Interpreter {
                 let datum = *self.data();
                 self.output.push(datum);
             }
-            Instr::Input => todo!(),
+            Instr::Input => {
+                let mut buf: [u8; 1] = [0; 1];
+                match self.input.read(&mut buf[..]) {
+                    Ok(1) => *self.data() = buf[0],
+                    _ => *self.data() = b'\0',
+                    // TODO: handle errors differently
+                };
+            }
             Instr::While(offset) => {
                 if *self.data() == 0 {
                     self.ip = offset
@@ -141,8 +145,13 @@ impl Interpreter {
     }
 }
 
-fn main() -> Result<()> {
-    let source = r#"
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hello_world() -> Result<()> {
+        let source = r#"
 [ This program prints "Hello World!" and a newline to the screen, its
   length is 106 active command characters. [It is not the shortest.]
 
@@ -186,9 +195,54 @@ Pointer :   ^
 +++.------.--------.    Cell #3 for 'rl' and 'd'
 >>+.                    Add 1 to Cell #5 gives us an exclamation point
 >++.                    And finally a newline from Cell #6
-        "#;
-    let mut interpreter = Interpreter::new();
-    interpreter.run(source)?;
-    println!("Output: {:?}", std::str::from_utf8(interpreter.get_output())?);
-    Ok(())
+"#;
+        let stdin = b"";
+        let mut interpreter = Interpreter::new(&stdin[..]);
+        interpreter.run(source)?;
+        assert_eq!(interpreter.get_output(), b"Hello World!\n");
+        Ok(())
+    }
+
+    #[test]
+    fn test_rot13() -> Result<()> {
+        let source = r#"
+-,+[                         Read first character and start outer character reading loop
+    -[                       Skip forward if character is 0
+        >>++++[>++++++++<-]  Set up divisor (32) for division loop
+                               (MEMORY LAYOUT: dividend copy remainder divisor quotient zero zero)
+        <+<-[                Set up dividend (x minus 1) and enter division loop
+            >+>+>-[>>>]      Increase copy and remainder / reduce divisor / Normal case: skip forward
+            <[[>+<-]>>+>]    Special case: move remainder back to divisor and increase quotient
+            <<<<<-           Decrement dividend
+        ]                    End division loop
+    ]>>>[-]+                 End skip loop; zero former divisor and reuse space for a flag
+    >--[-[<->+++[-]]]<[         Zero that flag unless quotient was 2 or 3; zero quotient; check flag
+        ++++++++++++<[       If flag then set up divisor (13) for second division loop
+                               (MEMORY LAYOUT: zero copy dividend divisor remainder quotient zero zero)
+            >-[>+>>]         Reduce divisor; Normal case: increase remainder
+            >[+[<+>-]>+>>]   Special case: increase remainder / move it back to divisor / increase quotient
+            <<<<<-           Decrease dividend
+        ]                    End division loop
+        >>[<+>-]             Add remainder back to divisor to get a useful 13
+        >[                   Skip forward if quotient was 0
+            -[               Decrement quotient and skip forward if quotient was 1
+                -<<[-]>>     Zero quotient and divisor if quotient was 2
+            ]<<[<<->>-]>>    Zero divisor and subtract 13 from copy if quotient was 1
+        ]<<[<<+>>-]          Zero divisor and add 13 to copy if quotient was 0
+    ]                        End outer skip loop (jump to here if ((character minus 1)/32) was not 2 or 3)
+    <[-]                     Clear remainder from first division if second division was skipped
+    <.[-]                    Output ROT13ed character from copy and clear it
+    <-,+                     Read next character
+]                            End character reading loop
+"#;
+        let stdin = b"Hello, world!";
+        let mut interpreter = Interpreter::new(&stdin[..]);
+        interpreter.run(source)?;
+        assert_eq!(interpreter.get_output(), b"Uryyb, jbeyq!");
+        Ok(())
+    }
+}
+
+fn main() {
+    todo!()
 }
