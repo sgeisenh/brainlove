@@ -1,8 +1,6 @@
-#![allow(unused_variables, dead_code)]
-
 use anyhow::{anyhow, Result};
 use std::collections::HashSet;
-use std::io;
+use std::io::{Read, Write};
 
 #[derive(Debug)]
 enum Instr {
@@ -19,28 +17,28 @@ enum Instr {
 const MEMORY_SIZE: usize = 30000;
 
 #[derive(Debug)]
-struct Interpreter<T: io::Read> {
-    input: T,
-    output: Vec<u8>,
+pub struct Interpreter<Input: Read, Output: Write> {
     code: Vec<Instr>,
+    input: Input,
+    output: Output,
     ip: usize,
     ptr: usize,
     memory: [u8; MEMORY_SIZE],
     breakpoints: HashSet<usize>,
 }
 
-fn generate_code(source: &str) -> Result<Vec<Instr>> {
+fn generate_code(source: &[u8]) -> Result<Vec<Instr>> {
     let mut code: Vec<Instr> = source
-        .chars()
+        .iter()
         .filter_map(|c| match c {
-            '>' => Some(Instr::Next),
-            '<' => Some(Instr::Prev),
-            '+' => Some(Instr::Incr),
-            '-' => Some(Instr::Decr),
-            '.' => Some(Instr::Output),
-            ',' => Some(Instr::Input),
-            '[' => Some(Instr::While(0)),
-            ']' => Some(Instr::End(0)),
+            b'>' => Some(Instr::Next),
+            b'<' => Some(Instr::Prev),
+            b'+' => Some(Instr::Incr),
+            b'-' => Some(Instr::Decr),
+            b'.' => Some(Instr::Output),
+            b',' => Some(Instr::Input),
+            b'[' => Some(Instr::While(0)),
+            b']' => Some(Instr::End(0)),
             _ => None,
         })
         .collect();
@@ -67,28 +65,22 @@ fn generate_code(source: &str) -> Result<Vec<Instr>> {
     Ok(code)
 }
 
-impl<T: io::Read> Interpreter<T> {
-    fn new(input: T) -> Self {
-        Self {
+impl<Input: Read, Output: Write> Interpreter<Input, Output> {
+    pub fn new(source: &[u8], input: Input, output: Output) -> Result<Self> {
+        Ok(Self {
+            code: generate_code(source)?,
             input,
-            output: Default::default(),
-            code: Default::default(),
+            output,
             ip: Default::default(),
             ptr: Default::default(),
             memory: [0; MEMORY_SIZE],
             breakpoints: Default::default(),
-        }
+        })
     }
 
-    pub fn get_output(&self) -> &[u8] {
-        &self.output
-    }
-
-    pub fn run(&mut self, source: &str) -> Result<()> {
-        self.code = generate_code(source)?;
-        println!("{:?}", self.code);
+    pub fn run(&mut self) -> Result<()> {
         while self.ip < self.code.len() {
-            self.step();
+            self.step()?;
             if self.breakpoints.contains(&self.ip) {
                 break;
             }
@@ -96,7 +88,7 @@ impl<T: io::Read> Interpreter<T> {
         Ok(())
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> Result<()> {
         match self.code[self.ip] {
             Instr::Next => self.ptr += 1,
             Instr::Prev => self.ptr -= 1,
@@ -104,15 +96,15 @@ impl<T: io::Read> Interpreter<T> {
             Instr::Decr => *self.data() = self.data().wrapping_sub(1),
             Instr::Output => {
                 let datum = *self.data();
-                self.output.push(datum);
+                self.output.write_all(&[datum])?;
             }
             Instr::Input => {
                 let mut buf: [u8; 1] = [0; 1];
-                match self.input.read(&mut buf[..]) {
-                    Ok(1) => *self.data() = buf[0],
-                    _ => *self.data() = b'\0',
-                    // TODO: handle errors differently
+                let char = match self.input.read(&mut buf[..])? {
+                    1 => buf[0],
+                    _ => 255,
                 };
+                *self.data() = char;
             }
             Instr::While(offset) => {
                 if *self.data() == 0 {
@@ -126,6 +118,7 @@ impl<T: io::Read> Interpreter<T> {
             }
         }
         self.ip += 1;
+        Ok(())
     }
 
     fn data(&mut self) -> &mut u8 {
@@ -151,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_hello_world() -> Result<()> {
-        let source = r#"
+        let source = br#"
 [ This program prints "Hello World!" and a newline to the screen, its
   length is 106 active command characters. [It is not the shortest.]
 
@@ -196,16 +189,17 @@ Pointer :   ^
 >>+.                    Add 1 to Cell #5 gives us an exclamation point
 >++.                    And finally a newline from Cell #6
 "#;
-        let stdin = b"";
-        let mut interpreter = Interpreter::new(&stdin[..]);
-        interpreter.run(source)?;
-        assert_eq!(interpreter.get_output(), b"Hello World!\n");
+        let input = b"";
+        let mut output = vec![];
+        let mut interpreter = Interpreter::new(source, &input[..], &mut output)?;
+        interpreter.run()?;
+        assert_eq!(output, b"Hello World!\n");
         Ok(())
     }
 
     #[test]
     fn test_rot13() -> Result<()> {
-        let source = r#"
+        let source = br#"
 -,+[                         Read first character and start outer character reading loop
     -[                       Skip forward if character is 0
         >>++++[>++++++++<-]  Set up divisor (32) for division loop
@@ -235,14 +229,11 @@ Pointer :   ^
     <-,+                     Read next character
 ]                            End character reading loop
 "#;
-        let stdin = b"Hello, world!";
-        let mut interpreter = Interpreter::new(&stdin[..]);
-        interpreter.run(source)?;
-        assert_eq!(interpreter.get_output(), b"Uryyb, jbeyq!");
+        let input = b"Hello, world!";
+        let mut output = vec![];
+        let mut interpreter = Interpreter::new(source, &input[..], &mut output)?;
+        interpreter.run()?;
+        assert_eq!(output, b"Uryyb, jbeyq!");
         Ok(())
     }
-}
-
-fn main() {
-    todo!()
 }
