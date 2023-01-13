@@ -23,3 +23,5 @@ Discussion:
 - If we change the code in the input field and hit continue, could we maintain
   the machine state and continue running with a modified program?
 - Potentially want to include time-travel style functionality?
+
+- Mary McGrath - Reach out about compile-to-wasm.

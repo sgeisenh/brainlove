@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Result};
 use std::collections::HashSet;
+use std::fmt::Display;
 use std::io::{Read, Write};
 
 #[derive(Debug)]
-enum Instr {
+pub enum Instr {
     Next,         // >
     Prev,         // <
     Incr,         // +
@@ -14,17 +15,34 @@ enum Instr {
     End(usize),   // ] offset back to opening [
 }
 
+impl Display for Instr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let contents = match self {
+            Instr::Next => ">",
+            Instr::Prev => "<",
+            Instr::Incr => "+",
+            Instr::Decr => "-",
+            Instr::Output => ".",
+            Instr::Input => ",",
+            Instr::While(_) => "[",
+            Instr::End(_) => "]",
+        };
+        f.write_str(contents)?;
+        Ok(())
+    }
+}
+
 const MEMORY_SIZE: usize = 30000;
 
 #[derive(Debug)]
 pub struct Interpreter<Input: Read, Output: Write> {
-    code: Vec<Instr>,
+    pub code: Vec<Instr>,
     input: Input,
     output: Output,
-    ip: usize,
-    ptr: usize,
-    memory: [u8; MEMORY_SIZE],
-    breakpoints: HashSet<usize>,
+    pub ip: usize,
+    pub ptr: usize,
+    pub memory: [u8; MEMORY_SIZE],
+    pub breakpoints: HashSet<usize>,
 }
 
 fn generate_code(source: &[u8]) -> Result<Vec<Instr>> {
@@ -234,6 +252,19 @@ Pointer :   ^
         let mut interpreter = Interpreter::new(source, &input[..], &mut output)?;
         interpreter.run()?;
         assert_eq!(output, b"Uryyb, jbeyq!");
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_instr() -> Result<()> {
+        assert_eq!(format!("{}", Instr::Next), ">");
+        assert_eq!(format!("{}", Instr::Prev), "<");
+        assert_eq!(format!("{}", Instr::Incr), "+");
+        assert_eq!(format!("{}", Instr::Decr), "-");
+        assert_eq!(format!("{}", Instr::Input), ",");
+        assert_eq!(format!("{}", Instr::Output), ".");
+        assert_eq!(format!("{}", Instr::While(3)), "[");
+        assert_eq!(format!("{}", Instr::End(3)), "]");
         Ok(())
     }
 }
