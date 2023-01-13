@@ -208,24 +208,9 @@ where
             }
             format!("{}", result)
         }) {
-            f.write_str(&instr_str)?;
+            write!(f, "{instr_str}")?;
         }
-        self.code
-            .iter()
-            .enumerate()
-            .map(|(idx, instr)| {
-                let mut result = format!("{}", instr);
-                if idx == self.ip {
-                    result = format!("{}", result.green());
-                }
-                if self.breakpoints.contains(&idx) {
-                    result = format!("{}", result.bold().underline());
-                }
-                result
-            })
-            .collect::<String>()
-            .fmt(f)?;
-        f.write_str("\nCurrent data:\n")?;
+        write!(f, "\nCurrent data:\n")?;
 
         // We want to group the memory into chunks of 16 bytes, each of which have
         // chunks of 2 bytes each.
@@ -243,12 +228,9 @@ where
                 }
                 f.write_fmt(format_args!("{:08x?} ", self.line_offset))?;
                 for byte_chunk in &self.byte_chunks[..self.byte_chunks.len() - 1] {
-                    f.write_fmt(format_args!("{} ", byte_chunk))?;
+                    write!(f, "{byte_chunk}")?;
                 }
-                f.write_fmt(format_args!(
-                    "{}",
-                    self.byte_chunks[self.byte_chunks.len() - 1]
-                ))
+                write!(f, "{}", self.byte_chunks[self.byte_chunks.len() - 1])
             }
         }
 
