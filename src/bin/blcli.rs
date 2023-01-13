@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let source: Vec<u8> = read(args().nth(1).unwrap()).context("Unable to read source file")?;
     let mut interpreter = Interpreter::new(&source, stdin(), BrainloveOutput::default())?;
     println!("{}", &interpreter);
-    while let Ok(_) = interpreter.step() {
+    while interpreter.step().is_ok() {
         println!("{}", &interpreter);
     }
     Ok(())

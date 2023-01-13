@@ -18,18 +18,20 @@ pub enum Instr {
 
 impl Display for Instr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let contents = match self {
-            Instr::Next => '>',
-            Instr::Prev => '<',
-            Instr::Incr => '+',
-            Instr::Decr => '-',
-            Instr::Output => '.',
-            Instr::Input => ',',
-            Instr::While(_) => '[',
-            Instr::End(_) => ']',
-        };
-        std::fmt::Write::write_char(f, contents)?;
-        Ok(())
+        write!(
+            f,
+            "{}",
+            match self {
+                Instr::Next => '>',
+                Instr::Prev => '<',
+                Instr::Incr => '+',
+                Instr::Decr => '-',
+                Instr::Output => '.',
+                Instr::Input => ',',
+                Instr::While(_) => '[',
+                Instr::End(_) => ']',
+            }
+        )
     }
 }
 
@@ -206,11 +208,11 @@ where
             if is_breakpoint {
                 result = result.bold().underline();
             }
-            format!("{}", result)
+            result
         }) {
             write!(f, "{instr_str}")?;
         }
-        write!(f, "\nCurrent data:\n")?;
+        writeln!(f, "\nCurrent data:")?;
 
         // We want to group the memory into chunks of 16 bytes, each of which have
         // chunks of 2 bytes each.
@@ -226,9 +228,9 @@ where
                 if self.byte_chunks.is_empty() {
                     return Ok(());
                 }
-                f.write_fmt(format_args!("{:08x?} ", self.line_offset))?;
+                write!(f, "{:08x?} ", self.line_offset)?;
                 for byte_chunk in &self.byte_chunks[..self.byte_chunks.len() - 1] {
-                    write!(f, "{byte_chunk}")?;
+                    write!(f, "{byte_chunk} ")?;
                 }
                 write!(f, "{}", self.byte_chunks[self.byte_chunks.len() - 1])
             }
@@ -242,7 +244,7 @@ where
         impl Display for ByteChunk {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 for bl_byte in &self.bl_bytes {
-                    f.write_fmt(format_args!("{}", bl_byte))?;
+                    write!(f, "{bl_byte}")?;
                 }
                 Ok(())
             }
@@ -257,12 +259,10 @@ where
         impl Display for BlByte {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 if self.highlighted {
-                    f.write_fmt(format_args!(
-                        "{}",
-                        format!("{:02x?}", self.byte).yellow().bold()
-                    ))
+                    let byte_str = format!("{:02x?}", self.byte);
+                    write!(f, "{}", byte_str.yellow().bold())
                 } else {
-                    f.write_fmt(format_args!("{:02x?}", self.byte))
+                    write!(f, "{:02x?}", self.byte)
                 }
             }
         }
@@ -300,12 +300,10 @@ where
         {
             line.fmt(f)?;
             if idx != num_chunks - 1 {
-                std::fmt::Write::write_char(f, '\n')?;
+                writeln!(f)?;
             }
         }
-        f.write_str("\nCurrent output: ")?;
-        self.output.fmt(f)?;
-        Ok(())
+        write!(f, "\nCurrent output: {}", self.output)
     }
 }
 
