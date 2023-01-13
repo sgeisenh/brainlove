@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use colored::*;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::io::{Read, Write};
@@ -18,16 +19,16 @@ pub enum Instr {
 impl Display for Instr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let contents = match self {
-            Instr::Next => ">",
-            Instr::Prev => "<",
-            Instr::Incr => "+",
-            Instr::Decr => "-",
-            Instr::Output => ".",
-            Instr::Input => ",",
-            Instr::While(_) => "[",
-            Instr::End(_) => "]",
+            Instr::Next => '>',
+            Instr::Prev => '<',
+            Instr::Incr => '+',
+            Instr::Decr => '-',
+            Instr::Output => '.',
+            Instr::Input => ',',
+            Instr::While(_) => '[',
+            Instr::End(_) => ']',
         };
-        f.write_str(contents)?;
+        std::fmt::Write::write_char(f, contents)?;
         Ok(())
     }
 }
@@ -36,13 +37,13 @@ const MEMORY_SIZE: usize = 30000;
 
 #[derive(Debug)]
 pub struct Interpreter<Input: Read, Output: Write> {
-    pub code: Vec<Instr>,
+    code: Vec<Instr>,
     input: Input,
     output: Output,
-    pub ip: usize,
-    pub ptr: usize,
-    pub memory: [u8; MEMORY_SIZE],
-    pub breakpoints: HashSet<usize>,
+    ip: usize,
+    ptr: usize,
+    memory: [u8; MEMORY_SIZE],
+    breakpoints: HashSet<usize>,
 }
 
 fn generate_code(source: &[u8]) -> Result<Vec<Instr>> {
@@ -107,13 +108,16 @@ impl<Input: Read, Output: Write> Interpreter<Input, Output> {
     }
 
     pub fn step(&mut self) -> Result<()> {
+        if !(0..self.code.len()).contains(&self.ip) {
+            return Err(anyhow!("The instruction pointer is out of range!"));
+        }
         match self.code[self.ip] {
             Instr::Next => self.ptr += 1,
             Instr::Prev => self.ptr -= 1,
-            Instr::Incr => *self.data() = self.data().wrapping_add(1),
-            Instr::Decr => *self.data() = self.data().wrapping_sub(1),
+            Instr::Incr => *self.data()? = self.data()?.wrapping_add(1),
+            Instr::Decr => *self.data()? = self.data()?.wrapping_sub(1),
             Instr::Output => {
-                let datum = *self.data();
+                let datum = *self.data()?;
                 self.output.write_all(&[datum])?;
             }
             Instr::Input => {
@@ -122,15 +126,15 @@ impl<Input: Read, Output: Write> Interpreter<Input, Output> {
                     1 => buf[0],
                     _ => 255,
                 };
-                *self.data() = char;
+                *self.data()? = char;
             }
             Instr::While(offset) => {
-                if *self.data() == 0 {
+                if *self.data()? == 0 {
                     self.ip = offset
                 }
             }
             Instr::End(offset) => {
-                if *self.data() != 0 {
+                if *self.data()? != 0 {
                     self.ip = offset
                 }
             }
@@ -139,8 +143,11 @@ impl<Input: Read, Output: Write> Interpreter<Input, Output> {
         Ok(())
     }
 
-    fn data(&mut self) -> &mut u8 {
-        &mut self.memory[self.ptr]
+    fn data(&mut self) -> Result<&mut u8> {
+        if !(0..self.memory.len()).contains(&self.ptr) {
+            return Err(anyhow!("The data pointer is out of range!"));
+        }
+        Ok(&mut self.memory[self.ptr])
     }
 
     pub fn add_breakpoint(&mut self, offset: usize) -> Result<()> {
@@ -153,6 +160,170 @@ impl<Input: Read, Output: Write> Interpreter<Input, Output> {
 
     pub fn remove_breakpoint(&mut self, offset: usize) {
         self.breakpoints.remove(&offset);
+    }
+
+    // Some public accessors to enable external rendering implementations.
+    pub fn get_code(&self) -> &[Instr] {
+        &self.code
+    }
+
+    pub fn get_ip(&self) -> usize {
+        self.ip
+    }
+
+    pub fn get_ptr(&self) -> usize {
+        self.ptr
+    }
+
+    pub fn get_memory(&self) -> &[u8] {
+        &self.memory
+    }
+
+    // Is there some sort of type erased wrapper for a "set" object in Rust?
+    pub fn get_breakpoints(&self) -> &HashSet<usize> {
+        &self.breakpoints
+    }
+
+    pub fn get_output(&self) -> &Output {
+        &self.output
+    }
+}
+
+// TODO: Maybe do a writeup of performance between functional style and
+// "imperative" style for formatting.
+impl<Input: Read, Output: Write> Display for &Interpreter<Input, Output>
+where
+    Output: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for instr_str in self.code.iter().enumerate().map(|(idx, instr)| {
+            let is_current_instruction = idx == self.ip;
+            let is_breakpoint = self.breakpoints.contains(&idx);
+            let mut result = ColoredString::from(&*instr.to_string());
+            if is_current_instruction {
+                result = result.green();
+            }
+            if is_breakpoint {
+                result = result.bold().underline();
+            }
+            format!("{}", result)
+        }) {
+            f.write_str(&instr_str)?;
+        }
+        self.code
+            .iter()
+            .enumerate()
+            .map(|(idx, instr)| {
+                let mut result = format!("{}", instr);
+                if idx == self.ip {
+                    result = format!("{}", result.green());
+                }
+                if self.breakpoints.contains(&idx) {
+                    result = format!("{}", result.bold().underline());
+                }
+                result
+            })
+            .collect::<String>()
+            .fmt(f)?;
+        f.write_str("\nCurrent data:\n")?;
+
+        // We want to group the memory into chunks of 16 bytes, each of which have
+        // chunks of 2 bytes each.
+
+        // A line with at most 8 chunks of at most 2 bytes a piece.
+        struct Line {
+            line_offset: usize,
+            byte_chunks: Vec<ByteChunk>,
+        }
+
+        impl Display for Line {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                if self.byte_chunks.is_empty() {
+                    return Ok(());
+                }
+                f.write_fmt(format_args!("{:08x?} ", self.line_offset))?;
+                for byte_chunk in &self.byte_chunks[..self.byte_chunks.len() - 1] {
+                    f.write_fmt(format_args!("{} ", byte_chunk))?;
+                }
+                f.write_fmt(format_args!(
+                    "{}",
+                    self.byte_chunks[self.byte_chunks.len() - 1]
+                ))
+            }
+        }
+
+        // A chunk of at most two bytes.
+        struct ByteChunk {
+            bl_bytes: Vec<BlByte>,
+        }
+
+        impl Display for ByteChunk {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                for bl_byte in &self.bl_bytes {
+                    f.write_fmt(format_args!("{}", bl_byte))?;
+                }
+                Ok(())
+            }
+        }
+
+        // A single byte to display.
+        struct BlByte {
+            highlighted: bool,
+            byte: u8,
+        }
+
+        impl Display for BlByte {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                if self.highlighted {
+                    f.write_fmt(format_args!(
+                        "{}",
+                        format!("{:02x?}", self.byte).yellow().bold()
+                    ))
+                } else {
+                    f.write_fmt(format_args!("{:02x?}", self.byte))
+                }
+            }
+        }
+
+        let num_chunks = (self.memory.len() + 15) / 16;
+        for (idx, line) in self
+            .memory
+            .chunks(16)
+            .take_while(|chunk| !chunk.iter().all(|byte| *byte == 0))
+            .enumerate()
+            .map(|(chunk_idx, chunk)| {
+                let line_offset = chunk_idx * 16;
+                let byte_chunks = chunk
+                    .chunks(2)
+                    .enumerate()
+                    .map(|(pair_idx, col)| {
+                        let bl_bytes = col
+                            .iter()
+                            .enumerate()
+                            .map(|(inner_idx, &byte)| {
+                                let highlighted =
+                                    chunk_idx * 16 + pair_idx * 2 + inner_idx == self.ptr;
+                                BlByte { highlighted, byte }
+                            })
+                            .collect::<Vec<_>>();
+                        ByteChunk { bl_bytes }
+                    })
+                    .collect::<Vec<_>>();
+                Line {
+                    line_offset,
+                    byte_chunks,
+                }
+            })
+            .enumerate()
+        {
+            line.fmt(f)?;
+            if idx != num_chunks - 1 {
+                std::fmt::Write::write_char(f, '\n')?;
+            }
+        }
+        f.write_str("\nCurrent output: ")?;
+        self.output.fmt(f)?;
+        Ok(())
     }
 }
 

@@ -8,7 +8,7 @@ use std::io::{stdin, stdout};
 fn main() -> Result<()> {
     if args().len() != 2 {
         return Err(anyhow!(
-                "Must provide a single argument with the path to a brainfuck source file: brainlove <source file>"
+                "Must provide a single argument with the path to a brainfuck source file: {} <source file>", args().next().unwrap()
                 ));
     }
     let source: Vec<u8> = read(args().nth(1).unwrap()).context("Unable to read source file")?;
