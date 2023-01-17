@@ -1,4 +1,4 @@
-use brainlove::interpreter::Interpreter;
+use interpreter::Interpreter;
 
 use anyhow::{anyhow, Context, Result};
 use std::env::args;

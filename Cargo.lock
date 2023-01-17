@@ -57,9 +57,8 @@ name = "brainlove"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "colored",
+ "interpreter",
  "rustyline",
- "yew",
 ]
 
 [[package]]
@@ -490,6 +489,14 @@ checksum = "1885e79c1fc4b10f0e172c475f458b7f7b93061064d98c3293e98c5ba0c8b399"
 dependencies = [
  "autocfg",
  "hashbrown",
+]
+
+[[package]]
+name = "interpreter"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "colored",
 ]
 
 [[package]]
@@ -1058,6 +1065,17 @@ name = "wasm-bindgen-shared"
 version = "0.2.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c38c045535d93ec4f0b4defec448e4291638ee608530863b1e2ba115d4fff7f"
+
+[[package]]
+name = "web"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "interpreter",
+ "wasm-bindgen",
+ "web-sys",
+ "yew",
+]
 
 [[package]]
 name = "web-sys"
