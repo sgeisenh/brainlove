@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.68"
 colored = "2.0.0"
+rustyline = "10.1.0"
+yew = { version = "0.20.0", features = ["csr"] }

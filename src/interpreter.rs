@@ -152,7 +152,8 @@ impl<Input: Read, Output: Write> Interpreter<Input, Output> {
         Ok(&mut self.memory[self.ptr])
     }
 
-    pub fn add_breakpoint(&mut self, offset: usize) -> Result<()> {
+    pub fn add_breakpoint(&mut self, offset: Option<usize>) -> Result<()> {
+        let offset = offset.unwrap_or(self.ip);
         if offset >= self.code.len() {
             return Err(anyhow!("Offset is out of bounds."));
         }
@@ -160,8 +161,8 @@ impl<Input: Read, Output: Write> Interpreter<Input, Output> {
         Ok(())
     }
 
-    pub fn remove_breakpoint(&mut self, offset: usize) {
-        self.breakpoints.remove(&offset);
+    pub fn remove_breakpoint(&mut self, offset: Option<usize>) {
+        self.breakpoints.remove(&offset.unwrap_or(self.ip));
     }
 
     // Some public accessors to enable external rendering implementations.
@@ -193,7 +194,7 @@ impl<Input: Read, Output: Write> Interpreter<Input, Output> {
 
 // TODO: Maybe do a writeup of performance between functional style and
 // "imperative" style for formatting.
-impl<Input: Read, Output: Write> Display for &Interpreter<Input, Output>
+impl<Input: Read, Output: Write> Display for Interpreter<Input, Output>
 where
     Output: Display,
 {

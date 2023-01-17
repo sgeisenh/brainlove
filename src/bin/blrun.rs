@@ -12,7 +12,7 @@ fn main() -> Result<()> {
                 ));
     }
     let source: Vec<u8> = read(args().nth(1).unwrap()).context("Unable to read source file")?;
-    let mut interpreter = Interpreter::new(&source, stdin(), stdout())?;
+    let mut interpreter = Interpreter::new(&source, stdin(), stdout().lock())?;
     interpreter.run()?;
     Ok(())
 }
