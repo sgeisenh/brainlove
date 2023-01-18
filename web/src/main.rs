@@ -1,7 +1,5 @@
 use anyhow::Result;
 use interpreter::Interpreter;
-use log::info;
-
 use std::{
     cell::{Cell, RefCell},
     collections::HashSet,
@@ -141,13 +139,13 @@ struct BlByteProps {
 #[function_component]
 fn BlByte(props: &BlByteProps) -> Html {
     let highlighted_style = use_style!("color: orange; font-weight: bold;");
-    let class = classes!(props.highlighted.then(|| Some(highlighted_style)));
+    let class = classes!(props.highlighted.then_some(Some(highlighted_style)));
     html! {
         <span {class}>{format!("{:02x?}", props.byte)}</span>
     }
 }
 
-#[derive(Properties, PartialEq)]
+#[derive(Properties, PartialEq, Eq)]
 pub struct MemoryProps {
     contents: Vec<u8>,
     dp: usize,
@@ -356,7 +354,7 @@ impl Component for InterpComp {
             let breakpoints = interpreter.get_breakpoints().clone();
             let onclick = ctx
                 .link()
-                .callback(move |offset| InterpMsg::ToggleBreak(offset));
+                .callback(InterpMsg::ToggleBreak);
             let ip = interpreter.get_ip();
             html! {
                 <Code {code}
@@ -398,7 +396,7 @@ impl Component for InterpComp {
     }
 }
 
-const HELLO_WORLD: &'static str = r#"[ This program prints "Hello World!" and a newline to the screen, its
+const HELLO_WORLD: &str = r#"[ This program prints "Hello World!" and a newline to the screen, its
   length is 106 active command characters. [It is not the shortest.]
 
   This loop is an "initial comment loop", a simple way of adding a comment
@@ -505,7 +503,7 @@ fn App() -> Html {
 
     let oninputinput = {
         let input_node_ref = input_node_ref.clone();
-        let web_input = web_input_value.clone();
+        let web_input = web_input_value;
         Callback::from(move |_| {
             let input = input_node_ref.cast::<HtmlTextAreaElement>();
 

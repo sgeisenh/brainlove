@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::io::{Read, Write};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Instr {
     Next,         // >
     Prev,         // <
