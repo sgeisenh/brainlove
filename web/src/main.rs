@@ -36,12 +36,9 @@ fn Instruction(props: &InstructionProps) -> Html {
             onclick.emit(offset);
         }
     };
-    let current_style = use_style!("color: red;");
-    let brk_style = use_style!("text-decoration: green wavy underline;");
-    let class = classes!(
-        current.then(|| Some(current_style)),
-        brk.then(|| Some(brk_style))
-    );
+    let current_style = current.then_some(use_style!("color: red;"));
+    let brk_style = brk.then_some(use_style!("text-decoration: green wavy underline;"));
+    let class = classes!(current_style, brk_style);
     html! {
         <span
             {class}
@@ -138,10 +135,11 @@ struct BlByteProps {
 
 #[function_component]
 fn BlByte(props: &BlByteProps) -> Html {
-    let highlighted_style = use_style!("color: orange; font-weight: bold;");
-    let class = classes!(props.highlighted.then_some(Some(highlighted_style)));
+    let BlByteProps { highlighted, byte } = props;
+    let highlighted_style = highlighted.then_some(use_style!("color: orange; font-weight: bold;"));
+    let class = classes!(highlighted_style);
     html! {
-        <span {class}>{format!("{:02x?}", props.byte)}</span>
+        <span {class}>{format!("{:02x?}", byte)}</span>
     }
 }
 
@@ -352,9 +350,7 @@ impl Component for InterpComp {
             let interpreter = interpreter.borrow();
             let code = interpreter.get_code().to_vec();
             let breakpoints = interpreter.get_breakpoints().clone();
-            let onclick = ctx
-                .link()
-                .callback(InterpMsg::ToggleBreak);
+            let onclick = ctx.link().callback(InterpMsg::ToggleBreak);
             let ip = interpreter.get_ip();
             html! {
                 <Code {code}
