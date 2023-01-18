@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::io::{Read, Write};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Instr {
     Next,         // >
     Prev,         // <
@@ -185,6 +185,10 @@ impl<Input: Read, Output: Write> Interpreter<Input, Output> {
     // Is there some sort of type erased wrapper for a "set" object in Rust?
     pub fn get_breakpoints(&self) -> &HashSet<usize> {
         &self.breakpoints
+    }
+
+    pub fn get_input(&self) -> &Input {
+        &self.input
     }
 
     pub fn get_output(&self) -> &Output {
